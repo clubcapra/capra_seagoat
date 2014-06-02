@@ -34,6 +34,7 @@ class SeaGoatRosClient:
         self.lines = tuple()
         self.init = False
         self.max_pixel_dist = 0
+        self.pool = Pool(cpu_count())
 
         #self._init_lines()
         self.tasks = list()
@@ -75,12 +76,12 @@ class SeaGoatRosClient:
             self._init_lines(image_size)
             self.init = True
 
-        pool = Pool(cpu_count())
+
         tasks = list()
         for line in self.lines:
             tasks.append((vision_raw_scan, line))
 
-        laser_scan.ranges = pool.map(_getObstacle, tasks)
+        laser_scan.ranges = self.pool.map(_getObstacle, tasks)
 
         """
         for line in self.lines:
