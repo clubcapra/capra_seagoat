@@ -20,6 +20,7 @@ class Line:
 
 class SeaGoatRosClient:
     def __init__(self):
+
         self.publisher = rospy.Publisher('VisionScan', LaserScan)
         self.subscriber = rospy.Subscriber('ImageArray', Image, self.image_callback)
         rospy.init_node('SeaGoatRosClient')
@@ -28,13 +29,16 @@ class SeaGoatRosClient:
 
         #Init lines intersect
 
-        self.range_max = 5
+        self.range_max = 500
+
         self.angle_max = math.radians(180.0)
         self.angle_increment = math.radians(0.5)
+        self.number_lines = int(self.angle_max/self.angle_increment)+1
         self.lines = tuple()
         self.init = False
         self.max_pixel_dist = 0
-        self.pool = Pool(cpu_count())
+        self.pool = Pool(cpu_count()/2)
+        self.resolution = 3
 
         #self._init_lines()
         self.tasks = list()
@@ -78,21 +82,11 @@ class SeaGoatRosClient:
 
 
         tasks = list()
-        for line in self.lines:
-            tasks.append((vision_raw_scan, line))
+        for line in range(self.number_lines):
+            tasks.append((vision_raw_scan, self.lines[line]))
 
         laser_scan.ranges = self.pool.map(_getObstacle, tasks)
 
-        """
-        for line in self.lines:
-            obstacle_found = False
-            for point in line:
-                if vision_raw_scan[point[1]][point[0]] > 125:
-                    obstacle_found = True
-                    laser_scan.ranges.append(point[2])
-                    break
-            if not obstacle_found:
-                laser_scan.ranges.append(0)"""
         #pool.close()
         laser_scan.header = header
         #laser_scan.scan_time = 1.0/5.0
@@ -112,21 +106,36 @@ class SeaGoatRosClient:
         current_angle = 0
 
         self.max_pixel_dist = math.sqrt(math.pow(image_size[0], 2) + math.pow(image_size[1], 2))
+        self.max_points = int(math.sqrt(math.pow(image_size[0], 2) + math.pow(image_size[1], 2)))
 
-        while current_angle <= self.angle_max:
+        self.lines = numpy.ndarray((self.number_lines, self.max_points, 3), dtype=int)
+
+        for line_id in range(self.number_lines):
             current_x = origin_x
             current_y = origin_y
             current_pixel_dist = 0
-            line = tuple()
+
+            line = self.lines[line_id]
+            point_id = -1
             while current_x < image_size[1] and current_y < image_size[0] and current_x >= 0 and current_y >= 0:
                 if (current_pixel_dist > 0):
-                    line = line + (
-                        tuple((current_x, current_y, (current_pixel_dist / self.max_pixel_dist) * self.range_max)),)
-                current_pixel_dist += 1.5
+                    point = line[point_id]
+                    point[0] = current_x
+                    point[1] = current_y
+                    point[2] = int((current_pixel_dist / self.max_pixel_dist) * self.range_max)
+
+                current_pixel_dist += self.resolution
                 current_x = int(current_pixel_dist * math.cos(current_angle)) + origin_x
                 current_y = int(current_pixel_dist * math.sin(-1 * current_angle)) + origin_y
+                point_id += 1
 
-            self.lines = self.lines + (line,)
+            if point_id < self.max_points:
+                end_point = line[point_id]
+                end_point[0] = -1
+                end_point[1] = -1
+                end_point[2] = -1
+
+            #self.lines = self.lines + (line,)
             #self.tasks.append(list([self.vision_raw_scan, line]))
             current_angle += self.angle_increment
 
@@ -134,10 +143,13 @@ def _getObstacle(args):
     #line = lines[i]
     image = args[0]
     line = args[1]
-    for point in line:
-        if image[point[1]][point[0]] > 125:
-            return point[2]
-    return 0
+    for point_id in range(len(line)):
+        point = line[point_id]
+        if point[0] == -1 and point[1] == -1 and point[2] == -1:
+            break
+        if image[point[1]][point[0]] > 0:
+            return float(point[2])/100.0
+    return 0.0
 
 
 if __name__ == '__main__':
