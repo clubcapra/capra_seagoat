@@ -29,8 +29,7 @@ class SeaGoatRosClient:
 
         #Init lines intersect
 
-        self.range_max = 500
-
+        self.range_max = 0
         self.angle_max = math.radians(180.0)
         self.angle_increment = math.radians(0.5)
         self.number_lines = int(self.angle_max/self.angle_increment)+1
@@ -38,7 +37,8 @@ class SeaGoatRosClient:
         self.init = False
         self.max_pixel_dist = 0
         self.pool = Pool(cpu_count()/2)
-        self.resolution = 3
+        self.resolution = 3.0
+        self.image_height_centimeter = 400
 
         #self._init_lines()
         self.tasks = list()
@@ -105,7 +105,7 @@ class SeaGoatRosClient:
 
         current_angle = 0
 
-        self.max_pixel_dist = math.sqrt(math.pow(image_size[0], 2) + math.pow(image_size[1], 2))
+        self.centimeter_by_pixel= float(self.image_height_centimeter)/float(image_size[0])
         self.max_points = int(math.sqrt(math.pow(image_size[0], 2) + math.pow(image_size[1], 2)))
 
         self.lines = numpy.ndarray((self.number_lines, self.max_points, 3), dtype=int)
@@ -117,12 +117,15 @@ class SeaGoatRosClient:
 
             line = self.lines[line_id]
             point_id = -1
+
             while current_x < image_size[1] and current_y < image_size[0] and current_x >= 0 and current_y >= 0:
                 if (current_pixel_dist > 0):
                     point = line[point_id]
                     point[0] = current_x
                     point[1] = current_y
-                    point[2] = int((current_pixel_dist / self.max_pixel_dist) * self.range_max)
+                    point[2] = int(current_pixel_dist*self.centimeter_by_pixel)
+                    if point[2] > self.range_max:
+                        self.range_max = point[2]
 
                 current_pixel_dist += self.resolution
                 current_x = int(current_pixel_dist * math.cos(current_angle)) + origin_x
