@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+
 import rospy
 import math
 import numpy
@@ -33,12 +35,12 @@ class SeaGoatRosClient:
         self.angle_max = math.radians(180.0)
         self.angle_increment = math.radians(0.5)
         self.number_lines = int(self.angle_max/self.angle_increment)+1
-        self.lines = tuple()
+
         self.init = False
         self.max_pixel_dist = 0
         self.pool = Pool(cpu_count()/2)
         self.resolution = 3.0
-        self.image_height_centimeter = 400
+        self.image_height_centimeter = 300
 
         #self._init_lines()
         self.tasks = list()
@@ -101,7 +103,7 @@ class SeaGoatRosClient:
 
     def _init_lines(self, image_size):
         origin_x = int(image_size[1] / 2)
-        origin_y = image_size[0] - 1
+        origin_y = (image_size[0] - 1)-50
 
         current_angle = 0
 
